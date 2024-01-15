@@ -1,0 +1,999 @@
+---
+title: "Advanced Analytical Approach in Glioma Grading Using Clinical and Genetic Data"
+author: "Aymen Maqsood"
+date: " 03/12/2023"
+output:
+  html_document:
+    df_print: paged
+    toc: True
+  pdf_document: default
+  
+---
+
+### Summary 
+
+In this  project, I aim to develop a model for accurately grading gliomas using clinical and genetic data. Using R libraries, I've worked on data preparation, including cleaning and feature engineering. The project progresses with splitting the data into training and testing sets. I've focused on building  KNN and Naive Bayes, along with logistic regression and SVM. These models are used to grade gliomas using clinical and genetic data
+
+
+## Importing required Libraries
+
+```{r laod_libraries, warning=FALSE, message=FALSE}
+
+# install.packages("tidyverse")     
+# install.packages("klaR")          
+# install.packages("rpart")        
+# install.packages("randomForest")  
+# install.packages("caret")        
+# install.packages("e1071")       
+# install.packages("DataExplorer")  
+# install.packages("gridExtra")  
+# install.packages("psych")        
+# install.packages("class")         
+# install.packages("Metrics")       
+# install.packages("kernlab")       
+
+library(tidyverse)
+library(klaR)
+library(rpart)
+library(dplyr)
+library(randomForest)
+library(caret)
+library(e1071)
+library(MASS)
+library(DataExplorer)
+library(ggplot2)
+library(gridExtra)
+library(psych)
+library(class)
+library(caret)
+library(Metrics)
+library(pROC)
+library(kernlab)
+library(randomForest)
+```
+
+
+1. Data Acquisition
+
+
+## loading DATA 
+
+- For Importing data, I have used read.csv function.
+- Using head function, I observed first few rows of the data
+- Since almost all the features are categorical,
+I have kept stringsAsFactors = True
+
+```{r datalaoding, warning=FALSE, message=FALSE}
+# https://docs.google.com/spreadsheets/d/1onsNlZd5VjhOALMmkIHuveSAlQKnVsp2d4Z4fzYcyws/export?format=csv
+#TCGA_infoWithGrade.csv
+
+##############################
+###      DATA LOADING      ###
+##############################
+
+#Importing Dataset
+df <- read.csv("https://docs.google.com/spreadsheets/d/1onsNlZd5VjhOALMmkIHuveSAlQKnVsp2d4Z4fzYcyws/export?format=csv" ,
+               stringsAsFactors = TRUE )
+
+#Exploring Dataset
+head(df)
+str(df)
+summary(df)
+
+## creating copy of data for further anlaysis
+c_df <- df
+
+
+```
+
+
+2. Data Exploration
+
+### plots 
+* The plot_intro function  from the DataExplorer package serves as an initial examination tool, offering a glimpse into the nature of the data at hand and identifying any gaps  where information may be lacking.
+* I have also used str and summary to understand the structure of the data present
+* To calculate the number of missing Values(NA) present in the data I have created a function inside 
+  sapply , it returns column name and NA present in it
+* To understand  the distribution of the data, I have plotted each column in barplot
+* findings : 
+a) Grade and Gender are categorical, encoded as integers.
+b) Age_at_diagnosis is a continuous variable, represented as a float.
+The remaining variables (Race, IDH1, TP53, ATRX, PTEN, EGFR, CIC, MUC16, PIK3CA,NF1, PIK3R1, FUBP1, RB1, NOTCH1, BCOR, CSMD3, SMARCA4, GRIN2A, IDH2, FAT4, PDGFRA) appear to be categorical, as they are encoded as integers, which could represent different categories or binary (0/1) indicators for gene mutations.
+c) There are no missing values , hence i will randomly input some missing values in further analysis 
+
+
+### Chi-Square Test Results:
+a) Variables like **Gender, PIK3CA, CSMD3, and FAT4** show p-values greater than 0.05, indicating no significant statistical association with the Grade variable.Based on this I think I will be Dropping the Gender column as it does not have any effect on the target variable.
+b)  On the other hand, variables such as **Race, IDH1, TP53, ATRX, PTEN, EGFR, CIC, MUC16, NF1, PIK3R1, FUBP1, RB1, NOTCH1, SMARCA4, GRIN2A, IDH2, and PDGFR**A have p-values less than 0.05, suggesting a potential statistically significant association with Grade.
+
+### ANOVA analysis :
+- performed ANOVA analysis between  age and Grade(target)and looks like there is a significant Relationship , so I am going to keep the age column.
+
+- tried doing Pairs.panels , the plots are not clear and doesnt Interpret much.
+
+### Target variable 
+in the dataset **Grade** is the target variable containing 2 factor levels .
+Glioma grade class information (0 = "LGG"; 1 = "GBM")** , 
+
+** LGG (Lower-Grade Glioma) or GBM (Glioblastoma Multiforme)
+
+```{r dataexplore, warning=FALSE,message=FALSE}
+
+##############################
+###      DATA EXPLORATION  ###
+##############################
+
+
+#Visualizing structure of the dataset
+plot_intro(df)
+
+
+# summary(df)
+
+# checking for missign values 
+sapply(df, function(x) sum(is.na(x)))
+
+# Plotting the distribution of the important features
+# Continuous Variable
+g1 <- ggplot(df, aes(x = Age_at_diagnosis, fill = "Steelblue")) + geom_histogram(binwidth = 1) + theme(legend.position = "none")
+
+# Categorical Variables
+g2 <- ggplot(df, aes(x = Grade, fill = factor(Grade))) + geom_bar() + theme(legend.position = "none")
+g3 <- ggplot(df, aes(x = Gender, fill = factor(Gender))) + geom_bar() + theme(legend.position = "none")
+g4 <- ggplot(df, aes(x = Race, fill = factor(Race))) + geom_bar() + theme(legend.position = "none")
+g5 <- ggplot(df, aes(x = IDH1, fill = factor(IDH1))) + geom_bar() + theme(legend.position = "none")
+g6 <- ggplot(df, aes(x = TP53, fill = factor(TP53))) + geom_bar() + theme(legend.position = "none")
+g7 <- ggplot(df, aes(x = ATRX, fill = factor(ATRX))) + geom_bar() + theme(legend.position = "none")
+g8 <- ggplot(df, aes(x = PTEN, fill = factor(PTEN))) + geom_bar() + theme(legend.position = "none")
+g9 <- ggplot(df, aes(x = EGFR, fill = factor(EGFR))) + geom_bar() + theme(legend.position = "none")
+g10 <- ggplot(df, aes(x = CIC, fill = factor(CIC))) + geom_bar() + theme(legend.position = "none")
+g11 <- ggplot(df, aes(x = MUC16, fill = factor(MUC16))) + geom_bar() + theme(legend.position = "none")
+g12 <- ggplot(df, aes(x = PIK3CA, fill = factor(PIK3CA))) + geom_bar() + theme(legend.position = "none")
+g13 <- ggplot(df, aes(x = NF1, fill = factor(NF1))) + geom_bar() + theme(legend.position = "none")
+g14 <- ggplot(df, aes(x = PIK3R1, fill = factor(PIK3R1))) + geom_bar() + theme(legend.position = "none")
+g15 <- ggplot(df, aes(x = FUBP1, fill = factor(FUBP1))) + geom_bar() + theme(legend.position = "none")
+g16 <- ggplot(df, aes(x = RB1, fill = factor(RB1))) + geom_bar() + theme(legend.position = "none")
+g17 <- ggplot(df, aes(x = NOTCH1, fill = factor(NOTCH1))) + geom_bar() + theme(legend.position = "none")
+g18 <- ggplot(df, aes(x = BCOR, fill = factor(BCOR))) + geom_bar() + theme(legend.position = "none")
+g19 <- ggplot(df, aes(x = CSMD3, fill = factor(CSMD3))) + geom_bar() + theme(legend.position = "none")
+g20 <- ggplot(df, aes(x = SMARCA4, fill = factor(SMARCA4))) + geom_bar() + theme(legend.position = "none")
+g21 <- ggplot(df, aes(x = GRIN2A, fill = factor(GRIN2A))) + geom_bar() + theme(legend.position = "none")
+g22 <- ggplot(df, aes(x = IDH2, fill = factor(IDH2))) + geom_bar() + theme(legend.position = "none")
+g23 <- ggplot(df, aes(x = FAT4, fill = factor(FAT4))) + geom_bar() + theme(legend.position = "none")
+g24 <- ggplot(df, aes(x = PDGFRA, fill = factor(PDGFRA))) + geom_bar() + theme(legend.position = "none")
+
+
+# display the continous variable 
+g1
+#Arranging the plots using grid.arrange function
+grid.arrange(g2,g3,g4,g5,g6,g7,g8,g9,nrow=3)
+grid.arrange(g10,g11,g12,g13,g14,g15,g16,g17,g18,nrow=3)
+grid.arrange(g19,g20,g21,g22,g23,g24 ,nrow=3)
+
+
+
+#converting categorical variables to factors 
+
+# Loop through each column in the dataframe
+for(col in names(df)) {
+  # Check if the column is of type integer or character
+  if(is.integer(df[[col]]) || is.character(df[[col]])) {
+    # Convert the column to a factor
+    df[[col]] <- as.factor(df[[col]])
+  }
+}
+
+
+# categorical variables labels
+categorical_vars <- names(df)[sapply(df, is.factor)]
+
+
+
+### CHI - squared analysis on categorical variables ###
+
+# Initialize an empty list to store the results
+
+chi_squared_results <- list()
+
+# Loop through each categorical variable and perform a Chi-Squared test
+for (var in categorical_vars) {
+  if (var != "Grade") {  # Skip the target variable itself
+    # Perform the Chi-Squared test
+    test_result <- chisq.test(table(df[[var]], df$Grade))
+    
+    # Store the results in the list with the variable name as the key
+    chi_squared_results[[var]] <- test_result
+  }
+}
+
+# Display the results
+chi_squared_results
+
+# ANOVA for 'Age_at_diagnosis' across different 'Grade' groups
+anova_result <- aov(Age_at_diagnosis ~ Grade, data = df)
+# summary(anova_result)
+
+
+
+# pairs panels 
+pairs.panels(df)
+
+
+```
+
+
+
+3. DATA cleaning 
+
+
+### Detection of outliers 
+
+- I checked for outliers only in the age_at_diagnosis column as its the only numerical column
+- there were no outliers detected 
+- since the rubric suggested to randomly impute missing data , ive done so in age column , I could have randomly removed data from the other categorical variabels and replaced it with **mode** but I am not going to do so .
+ 
+### DATA imputation
+- I have randomly sampled out  10% of age_by_diagnosis column and imputed it with the median 
+
+### Encoding of data 
+The data is already been Dummy coded and hence no encoding was required and hence not done.
+
+### Normalization/Standardization
+- Normalizing the data did not makes no difference in predictions
+- It is because the data is categorical and not continous
+- So I haved decided not to  use normalized data for my models
+
+### PCA 
+
+PCA is more effective with continuous data. Since most of my data is categorical, 
+the application of PCA might not be straightforward or meaningful
+
+
+
+
+```{r outlier detection, warning=FALSE ,message=FALSE}
+
+##############################
+###  OUTLIER DETECTION     ###
+##############################
+
+# Boxplot for visual inspection of outliers
+ggplot(df, aes(y = Age_at_diagnosis)) + 
+  geom_boxplot() + 
+  labs(title = "Boxplot for Age_at_diagnosis")
+
+
+
+##################################
+### Missing Value Imputation   ### 
+#################################
+
+
+# Set a seed for reproducibility
+set.seed(123)
+
+
+# Randomly remove values: 
+sample_size <- round(0.10 * nrow(df))  # 10% of rows
+missing_indices <- sample(1:nrow(df), sample_size)
+
+# Set these values to NA
+df$Age_at_diagnosis[missing_indices] <- NA
+
+#checking missing values 
+sum(is.na(df))
+
+# Calculate the median of the non-missing values
+median_age <- median(df$Age_at_diagnosis, na.rm = TRUE)
+
+# Replace missing values with the median
+df$Age_at_diagnosis[is.na(df$Age_at_diagnosis)] <- median_age
+
+#checking if immputed correctly 
+sum(is.na(df))
+
+
+
+#############################
+### Feature Engineering ####
+############################
+
+# Dropping the Gender column because it shows no statistical significance with the Target variable 
+df <- df[-2]
+
+plot_intro(df)
+
+str(df)
+
+### removing the gender column from copy data 
+c_df <- c_df[-2]
+
+# str(c_df)
+
+# normalizing Age column using scale()
+df$Age_at_diagnosis <- scale(df$Age_at_diagnosis)
+c_df$Age_at_diagnosis <- scale(c_df$Age_at_diagnosis)
+```
+
+4. Model Construction & Evaluation
+
+### Creation of training & validation subsets
+
+- I did data splitting in 75:25 ratio
+- Partitioned the data  using createDataPartition function from the caret package.
+
+### Construction of the  models
+
+- I built 4 models which are as follows: 
+  * k-Nearest Neighbors(knn() from *class* package)
+  * Naive- Bayes (NaiveBayes() from *klaR* package )
+  * Logistic Regression (glm) 
+  * Support Vector Machine (ksvm)
+- I chose these models as my dataset has combination of continous and categorical data  , while most data is categorical in terms of gene mutations and these models aim to predict  data better for classifciation 
+
+### Test-Train SPLIT
+
+```{r datasplit, warning=FALSE,message=FALSE}
+
+#################################################
+### Creation of training & validation subsets ###
+#################################################
+
+df$Grade <- as.factor(df$Grade)
+
+# set seed for reproducebility
+set.seed(123)
+
+#Splitting the dataset into 75:25 ratio
+index <- createDataPartition(df$Grade, p=0.75, list = FALSE, times = 1)
+
+
+#Using categorical dataset for glm,SVM , KNN and Naive Bayes
+training_data_factor <-df[index, ]
+testing_data_factor <- df[-index, ]
+
+# Preparing the data labels for knn
+train_labels <- training_data_factor$Grade
+test_labels <- testing_data_factor$Grade
+
+```
+
+
+
+
+```{r KNN, warning=FALSE,message=FALSE}
+
+###########################
+### k-Nearest Neighbors ###
+###########################
+
+k <- 5
+knn_pred <- knn(train = training_data_factor[-1], test = testing_data_factor[-1], cl = train_labels, k = k)
+
+# Evaluating the model
+conf_matrix <- table(Predicted = knn_pred, Actual = testing_data_factor$Grade)
+print(conf_matrix)
+
+# checking accuarcy for different k valaues
+results <- data.frame(k = integer(), accuracy = numeric())
+for (k in c(1, 3, 5, 7, 10, 15, 20)) {
+  knn_predictions <- knn(train = training_data_factor[-1] , test = testing_data_factor[-1], cl = train_labels, k = k)
+  acc <- sum(knn_predictions == test_labels) / length(test_labels)
+  results <- rbind(results, data.frame(k = k, accuracy = acc))
+}
+
+# Plotting accuracy vs. k
+ggplot(results, aes(x = k, y = accuracy)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "kNN Accuracy vs. k", x = "k", y = "Accuracy")
+
+
+# Calculate accuracy
+accuracy_knn <- sum(diag(conf_matrix)) / sum(conf_matrix)
+
+
+# Replacing  model's predictions and actual labels
+predictions <- knn_pred  # model's predictions
+actuals <- test_labels # Actual labels from test data
+
+conf_matrix_func <- confusionMatrix(predictions , actuals) 
+
+# Converting to factor if they are not already
+predictions <- as.factor(predictions)
+actuals <- as.factor(actuals)
+
+# Precision and Recall
+precision_knn <- conf_matrix_func$byClass['Precision']
+recall_knn <- conf_matrix_func$byClass['Recall']
+
+# F1 Score
+F1_score_knn <- 2 * (precision_knn * recall_knn) / (precision_knn + recall_knn)
+
+# making predictions numeric for AUC calculation
+numeric_predictions <- as.numeric(levels(predictions))[predictions]
+numeric_actuals <- as.numeric(levels(actuals))[actuals]
+actuals_numeric <- as.numeric(as.character(actuals))
+
+
+numeric_predictions
+actuals
+
+roc_curve <- roc(response = actuals_numeric, predictor = numeric_predictions)
+
+AUC_knn <- auc(roc_curve)
+
+# Print Metrics
+print(paste("Accuracy:", accuracy_knn))
+print(paste("Precision:", precision_knn))
+print(paste("Recall:", recall_knn))
+print(paste("F1 Score:", F1_score_knn))
+print(paste("AUC:", AUC_knn))
+
+
+
+```
+
+
+
+
+
+
+
+```{r NBmodel, warning=FALSE, message=FALSE}
+###########################
+###     Naive Bayes     ###
+###########################
+
+
+naive_bayes <- NaiveBayes(Grade ~ . , data = training_data_factor)
+# summary(naive_bayes)
+naive_bayes_predictions <- predict(naive_bayes , newdata = testing_data_factor)
+# summary(naive_bayes_predictions)
+
+
+# Evaluating the model
+conf_matrix_nb <- table(Predicted = naive_bayes_predictions$class, Actual = testing_data_factor$Grade)
+
+print(conf_matrix_nb)
+
+# Calculate accuracy
+accuaracy_nb <- sum(diag(conf_matrix_nb)) / sum(conf_matrix_nb)
+print(paste("Accuracy:", accuaracy_nb))
+
+
+# Replacing  model's predictions and actual labels
+predictions <- naive_bayes_predictions$class  # model's predictions
+actuals <- testing_data_factor$Grade # Actual labels from test data
+
+conf_matrix_func <- confusionMatrix(predictions , actuals) 
+
+# Converting to factor 
+predictions <- as.factor(predictions)
+actuals <- as.factor(actuals)
+
+# Precision and Recall
+precision_nb <- conf_matrix_func$byClass['Precision']
+recall_nb <- conf_matrix_func$byClass['Recall']
+
+# F1 Score
+F1_score_nb <- 2 * (precision_nb * recall_nb) / (precision_nb + recall_nb)
+
+# making predictions numeric for AUC calculation
+numeric_predictions <- as.numeric(levels(predictions))[predictions]
+numeric_actuals <- as.numeric(levels(actuals))[actuals]
+
+
+AUC_nb <- auc(roc(actuals, numeric_predictions))
+
+# Print Metrics
+print(paste("Accuracy:", accuaracy_nb))
+print(paste("Precision:", precision_nb))
+print(paste("Recall:", recall_nb))
+print(paste("F1 Score:", F1_score_nb))
+print(paste("AUC:", AUC_nb))
+
+# Generating the ROC curve to check for overfitting 
+roc_curve <- roc(testing_data_factor$Grade, numeric_predictions)
+# Plotting the ROC curve
+plot(roc_curve, main = "ROC Curve for Naive Bayes Model")
+
+
+```
+
+
+
+
+```{r GLM, warning=FALSE,message=FALSE}
+
+###########################
+### Logistic Regression ###
+###########################
+
+#Building the logistic regression model using glm function
+lm <- glm( Grade~., data = training_data_factor, family = "binomial" )
+
+# Observing the summary of the model
+# summary(lm)
+
+# Make predictions on the test set
+pred_lm <- predict(lm , testing_data_factor ,type = "response")
+
+# Convert probabilities to binary outcomes based on a 0.5 cutoff
+pred_classes <- ifelse(pred_lm > 0.5, 1, 0)
+
+
+# Evaluating the model
+conf_matrix_glm <- table(Predicted = pred_classes, Actual = testing_data_factor$Grade)
+
+print(conf_matrix_glm)
+
+# Calculate accuracy
+accuracy_lm <- sum(diag(conf_matrix_glm)) / sum(conf_matrix_glm)
+
+
+# Replacing  model's predictions and actual labels
+predictions_lm <- pred_classes  # model's predictions
+actuals_lm <- testing_data_factor$Grade # Actual labels from test data
+
+# Converting to factor 
+predictions_lm <- as.factor(predictions_lm)
+actuals_lm <- as.factor(actuals_lm)
+
+
+# calculating COnfusion matrix with caret package
+conf_matrix_func <- confusionMatrix(predictions_lm , actuals_lm) 
+
+
+
+# Precision and Recall
+precision_lm <- conf_matrix_func$byClass['Precision']
+recall_lm <- conf_matrix_func$byClass['Recall']
+
+# F1 Score
+F1_score_lm <- 2 * (precision_lm * recall_lm) / (precision_lm + recall_lm)
+
+# making predictions numeric for AUC calculation
+numeric_predictions <- as.numeric(levels(predictions_lm))[predictions_lm]
+numeric_actuals <- as.numeric(levels(actuals_lm))[actuals_lm]
+
+# AUC and roc
+AUC_lm <- auc(roc(actuals_lm, numeric_predictions))
+
+# Print Metrics
+print(paste("Accuracy:", accuracy_lm))
+print(paste("Precision:", precision_lm))
+print(paste("Recall:", recall_lm))
+print(paste("F1 Score:", F1_score_lm))
+print(paste("AUC:", AUC_lm))
+
+
+
+# plottign roc curve for checking overfitting
+roc_c <- roc(actuals_lm, numeric_predictions)
+plot(roc_c , main =  "ROC Curve for Logistic Regression")
+```
+
+
+```{r SVM,warning=FALSE,message=FALSE}
+
+##############################
+### Support Vector Machine ###
+##############################
+
+#Building SVM model with categorical data
+svm_model <- ksvm(Grade ~ ., data = training_data_factor,  prob.model=TRUE,kernel="rbfdot")
+summary (svm_model)
+
+
+#Predicting outcome of the testing dataset
+pred_svm <- predict(svm_model, testing_data_factor)
+
+#Observing first few predictions
+head(pred_svm)
+
+
+pred_svm <- as.factor(pred_svm)
+
+# Evaluating the model
+conf_matrix_svm <- table(Predicted = pred_svm, Actual = testing_data_factor$Grade)
+print(conf_matrix_svm)
+
+# Calculate accuracy
+accuracy_svm <- sum(diag(conf_matrix_svm)) / sum(conf_matrix_svm)
+
+# Replacing model's predictions and actual labels
+predictions_svm <- pred_svm  # model's predictions
+actuals_Svm <- testing_data_factor$Grade # Actual labels from test data
+
+# factors with the same levels
+predictions_svm <- factor(predictions_svm, levels = levels(actuals_Svm))
+actuals_Svm <- factor(actuals_Svm)
+
+# Calculating confusion matrix with caret package
+conf_matrix_func <- confusionMatrix(predictions_svm, actuals_Svm)
+
+# Precision and Recall
+precision_svm <- conf_matrix_func$byClass['Precision']
+recall_svm <- conf_matrix_func$byClass['Recall']
+
+# F1 Score
+F1_score_svm <- 2 * (precision_svm * recall_svm) / (precision_svm + recall_svm)
+
+# Making predictions numeric for AUC calculation
+numeric_predictions_svm <- as.numeric(levels(predictions_svm))[predictions_svm]
+numeric_Actucals_Svm <- as.numeric(levels(actuals_Svm))[actuals_Svm]
+
+# AUC and ROC
+AUC_svm <- auc(roc(actuals_Svm, numeric_predictions_svm))
+
+# Print Metrics
+print(paste("Accuracy:", accuracy_svm))
+print(paste("Precision:", precision_svm))
+print(paste("Recall:", recall_svm))
+print(paste("F1 Score:", F1_score_svm))
+print(paste("AUC:", AUC_svm))
+
+
+# plottign roc curve for checking overfitting
+roc_c <- roc(actuals_Svm, numeric_predictions_svm)
+plot(roc_c , main =  "ROC Curve for svm")
+```
+
+
+
+5. Model Evaluation:
+I chose the **accuracy**, **precision**, **recall**, **F1 Score** , and **AUC** as my metrics. I selected these metrics because they provide a comprehensive view of the model's performance. Accuracy measures overall correctness, precision evaluates the model's ability to make correct positive predictions, recall assesses the model's ability to capture true positive instances, and the F1 Score balances precision and recall. Additionally, the AUC helps us understand the model's ability to distinguish between different classes, which is crucial in a **medical classifications**
+
+
+The k-NN model achieved an accuracy of approximately `r round(accuracy_knn*100 ,2)`, with a precision of `r round(precision_knn*100,2)` and recall of `r round(recall_knn *100,2) `. The F1 Score was approximately `r F1_score_knn`, and the Area Under the ROC Curve (AUC) was around `r AUC_knn`. 
+
+Naive Bayes performed slightly better, with an accuracy of 87.6%, precision of 92.79%, recall of 85.12%, and an F1 Score of approximately 0.888, with an AUC of around 0.88.
+
+Logistic Regression showed the highest accuracy of approximately 88.5%, precision of 93.69%, recall of 85.95%, F1 Score of approximately 0.897, and AUC of around 0.89. 
+
+Lastly, the Support Vector Machine achieved an accuracy of 88.5%, precision of 95.33%, recall of 84.30%, F1 Score of approximately 0.895, and AUC of around 0.893
+
+
+
+
+### k-fold cross-validation for each model
+
+
+
+
+```{r Kcross validation ,warning=FALSE, message=FALSE}
+##################################
+### 10 - FOLD CROSS VALIDATION ###
+################################
+
+set.seed(123)
+train_control <- trainControl(method = "cv", number = 10)
+
+
+### logistic regression ### 
+glm_fit <- train(Grade ~ ., data = training_data_factor, method = "glm", family = "binomial", trControl = train_control)
+print(glm_fit)
+
+
+
+
+### SVM ####
+svm_fit <- train(Grade ~ ., data = training_data_factor, method = "svmRadial", trControl = train_control,  tuneLength = 10)
+print(svm_fit)
+
+
+
+#### KNN ###
+set.seed(123)
+
+# Number of folds
+k_folds <- 10
+
+# Create folds
+folds <- createFolds(training_data_factor$Grade, k = k_folds, list = TRUE)
+
+# Initialize vector to store results
+knn_results <- vector("list", length = k_folds)
+
+# Loop over folds
+for(i in 1:k_folds){
+  # Split the data
+  train_fold <- training_data_factor[-folds[[i]], ]
+  test_fold <- training_data_factor[folds[[i]], ]
+
+  # Fit kNN model (choose appropriate k)
+  k <- 5
+  knn_fit <- knn(train = train_fold[-1], test = test_fold[-1], cl = train_fold$Grade, k = k)
+
+  # Evaluate the model
+  knn_results[[i]] <- confusionMatrix(knn_fit, test_fold$Grade)
+}
+
+# Calculate average performance
+mean_accuracy_knn <- mean(sapply(knn_results, function(x) x$overall['Accuracy']))
+
+
+mean_accuracy_knn
+
+
+### Naive Bayes ###
+# Create folds
+folds <- createFolds(training_data_factor$Grade, k = k_folds, list = TRUE)
+
+# Initialize vector to store results
+nb_results <- vector("list", length = k_folds)
+
+# Loop over folds
+for(i in 1:k_folds){
+  # Split the data
+  train_fold <- training_data_factor[-folds[[i]], ]
+  test_fold <- training_data_factor[folds[[i]], ]
+
+  # Fit Naive Bayes model
+  nb_fit <- NaiveBayes(Grade ~ ., data = train_fold)
+
+  # Make predictions
+  nb_pred <- predict(nb_fit, newdata = test_fold)
+
+  # Evaluate the model
+  nb_results[[i]] <- confusionMatrix(nb_pred$class, test_fold$Grade)
+}
+
+# Calculate average performance
+mean_accuracy_nb <- mean(sapply(nb_results, function(x) x$overall['Accuracy']))
+
+
+mean_accuracy_nb
+
+
+```
+1. K-Nearest Neighbors (kNN):
+
+Number of neighbors (k): 5.
+Average accuracy: Approximately `r mean_accuracy_knn`
+Observation: The kNN model, with 5 neighbors, shows a strong ability to classify the data correctly. An accuracy of around 84.64% indicates that the model is performing well. However, it's worth considering testing different values of k to see if the accuracy can be improve
+
+
+2. Naive Bayes :Average accuracy: Approximately  `r mean_accuracy_nb`
+Observation: The Naive Bayes model achieves an impressive average accuracy of about 86.04%. 
+
+
+3. Logistic Regression; it showed around `r glm_fit$results$Accuracy * 100`  accuracy. This tells me that the relationship between our predictors and the outcome (Grade) fits well with a logistic approach. It's a straightforward model, and its high accuracy is a big plus for the  analysis.
+
+
+4. Support Vector Machine (SVM):
+For SVM, a C value of 0.25 ended up being the best, and  got  accuracy of about `r mean(svm_fit$results$Accuracy) * 100` This parameter choice and the use of the radial basis function kernel indicate that our data needs a bit of flexibility in the model, but not too much, to avoid overfitting.
+
+
+
+-General Takeaways:
+
+Comparing these models was super useful. It seems like Logistic Regression and SVM are  top performers for this dataset.
+
+6. model Tuning and ensemble model 
+
+### model tuning
+
+- I've meticulously tuned my predictive models to optimize their performance.
+
+- For the k-Nearest Neighbors model, I determined the best number of neighbors, balancing model complexity and accuracy.
+
+- In Logistic Regression, I applied a stepwise backward method, selectively using the most significant features. 
+
+- For the Support Vector Machine, I tuned crucial parameters like cost and gamma to enhance its generalization ability.
+
+
+
+```{r TuningKNN, warning=FALSE,message=FALSE, }
+########################
+### Tuning of Models ###
+########################
+
+### Tuning k for kNN ###
+best_k <- 1
+best_accuracy <- 0
+
+for (k in 1:20) {
+  set.seed(123) # for reproducibility
+  knn_pred_t <- knn(train = training_data_factor[-1], test = testing_data_factor[-1], cl = train_labels, k = k)
+  current_accuracy <- sum(knn_pred_t == testing_data_factor$Grade) / length(testing_data_factor$Grade)
+  
+  if (current_accuracy > best_accuracy) {
+    best_accuracy <- current_accuracy
+    best_k <- k
+  }
+}
+
+print(paste("Best k:", best_k))
+
+# Using the best k
+knn_pred_t <- knn(train = training_data_factor[-1], test = testing_data_factor[-1], cl = train_labels, k = best_k)
+
+# Calculating metrics for kNN
+conf_matrix_knn_t <- confusionMatrix(as.factor(knn_pred_t), as.factor(testing_data_factor$Grade))
+# conf_matrix_knn_t
+accuracy_knn_t <- conf_matrix_knn_t$overall['Accuracy']
+precision_knn_t <- conf_matrix_knn_t$byClass['Precision']
+recall_knn_t <- conf_matrix_knn_t$byClass['Recall']
+F1_score_knn_t <- 2 * (precision_knn_t * recall_knn_t) / (precision_knn_t + recall_knn_t)
+AUC_knn_t <- auc(roc(as.numeric(testing_data_factor$Grade), as.numeric(as.factor(knn_pred_t))))
+
+print(paste("Accuracy for kNN:", accuracy_knn_t))
+print(paste("Precision for kNN:", precision_knn_t))
+print(paste("Recall for kNN:", recall_knn_t))
+print(paste("F1 Score for kNN:", F1_score_knn_t))
+print(paste("AUC for kNN:", AUC_knn_t))
+```
+
+
+```{r TuningGLM, warning=FALSE,message=FALSE,results='hide'}
+### Logistic Regression ###
+# Stepwise backward logistic regression
+stepwise_model <- step(lm, direction = "backward")
+```
+
+
+```{r Tuning, warning=FALSE,message=FALSE, }
+# Predictions using stepwise model
+step_pred <- predict(stepwise_model, newdata = testing_data_factor, type = "response")
+step_classes <- ifelse(step_pred > 0.5, 1, 0)
+
+# Metrics for Stepwise Logistic Regression
+conf_matrix_step <- confusionMatrix(as.factor(step_classes), as.factor(testing_data_factor$Grade))
+accuracy_step <- conf_matrix_step$overall['Accuracy']
+precision_step <- conf_matrix_step$byClass['Precision']
+recall_step <- conf_matrix_step$byClass['Recall']
+F1_score_step <- 2 * (precision_step * recall_step) / (precision_step + recall_step)
+AUC_step <- auc(roc(as.numeric(testing_data_factor$Grade), as.numeric(as.factor(step_classes))))
+print(paste("Accuracy for Logistic Regression:", accuracy_step))
+print(paste("Precision for Logistic Regression:", precision_step))
+print(paste("Recall for Logistic Regression:", recall_step))
+print(paste("F1 Score for Logistic Regression:", F1_score_step))
+print(paste("AUC for Logistic Regression:", AUC_step))
+```
+
+
+```{r TuningSVM, warning=FALSE,message=FALSE, }
+### SVM ###
+# Tuning SVM
+tuned_svm <- tune.svm(Grade ~ ., data = training_data_factor, gamma = 10^(-6:-1), cost = 10^(1:2))
+
+# Best SVM model
+best_svm <- tuned_svm$best.model
+
+# Predictions using the best SVM model
+pred_svm <- predict(best_svm, testing_data_factor)
+
+# Metrics for SVM
+conf_matrix_svm_t <- confusionMatrix(as.factor(pred_svm), as.factor(testing_data_factor$Grade))
+conf_matrix_svm_t
+accuracy_svm <- conf_matrix_svm_t$overall['Accuracy']
+precision_svm <- conf_matrix_svm_t$byClass['Precision']
+recall_svm <- conf_matrix_svm_t$byClass['Recall']
+F1_score_svm <- 2 * (precision_svm * recall_svm) / (precision_svm + recall_svm)
+AUC_svm <- auc(roc(as.numeric(testing_data_factor$Grade), as.numeric(as.factor(pred_svm))))
+print(paste("Accuracy for SVM:", accuracy_svm))
+print(paste("Precision for SVM:", precision_svm))
+print(paste("Recall for SVM:", recall_svm))
+print(paste("F1 Score for SVM:", F1_score_svm))
+print(paste("AUC for SVM:", AUC_svm))
+
+
+
+```
+
+
+
+### Construction of ensemble model 
+
+
+```{r ensemble stacked model ,warning=FALSE,message=FALSE}
+# Ensemble prediction function for entire test dataset
+predictOutcomeClass <- function(newdata, nb_model, glm_model, knn_model, train_data, train_labels, k) {
+  # Store ensemble predictions
+  ensemble_predictions <- character(nrow(newdata))
+
+  for (i in 1:nrow(newdata)) {
+    # Predict using Naive Bayes
+    nb_prediction <- predict(nb_model, newdata = newdata[i, , drop = FALSE], type = "class")
+    nb_prediction <- as.character(nb_prediction)
+
+    # Predict using Logistic Regression
+    glm_prob <- predict(glm_model, newdata = newdata[i, , drop = FALSE], type = "response")
+    glm_prediction <- ifelse(glm_prob > 0.5, "1", "0")
+
+    # Predict using kNN
+    knn_prediction <- knn(train = train_data[-1], test = newdata[i, -1, drop = FALSE], cl = train_labels, k = k)
+
+    # Combine predictions
+    predictions <- c(nb_prediction, glm_prediction, knn_prediction)
+
+    # Use table to count the occurrences of each prediction
+    tbl <- table(predictions)
+
+    # Calculate majority vote
+    majority_vote <- names(which.max(tbl))
+
+    # Store the majority vote
+    ensemble_predictions[i] <- majority_vote
+  }
+
+  return(as.factor(ensemble_predictions))
+}
+
+# Predicting the outcome using the ensemble model for the entire test dataset
+ensemble_predictions <- predictOutcomeClass(testing_data_factor, naive_bayes, lm, knn_pred_t, 
+                                            training_data_factor, 
+                                            training_data_factor$Grade, 
+                                            k=4) #  tuned k value from kNN
+
+# Metrics Calculation
+conf_matrix_ensemble <- confusionMatrix(ensemble_predictions, testing_data_factor$Grade)
+accuracy_ensemble <- conf_matrix_ensemble$overall['Accuracy']
+precision_ensemble <- conf_matrix_ensemble$byClass['Precision']
+recall_ensemble <- conf_matrix_ensemble$byClass['Recall']
+F1_score_ensemble <- 2 * (precision_ensemble * recall_ensemble) / (precision_ensemble + recall_ensemble)
+AUC_ensemble <- auc(roc(as.numeric(testing_data_factor$Grade), as.numeric(ensemble_predictions)))
+
+# Print Metrics
+print(paste("Ensemble Model Accuracy:", accuracy_ensemble))
+print(paste("Ensemble Model Precision:", precision_ensemble))
+print(paste("Ensemble Model Recall:", recall_ensemble))
+print(paste("Ensemble Model F1 Score:", F1_score_ensemble))
+print(paste("Ensemble Model AUC:", AUC_ensemble))
+```
+Clearly the stacked model does not perform better than tuned Logistic regression model for the classification of glioma Using Clinical and Genetic Data as Logistic regression has better evaluation metrics 
+
+### ensemble prediction on single data point 
+
+```{r Ensemble prediction single data point, warning=FALSE,message=FALSE}
+
+# Ensemble prediction function
+predictOutcomeClass <- function(newdata, nb_model, glm_model, knn_model, train_data, train_labels) {
+  # Predict using Naive Bayes
+  nb_prediction <- predict(nb_model, newdata = newdata, type = "class")
+  nb_prediction <- as.character(nb_prediction)
+
+  # Predict using Logistic Regression and convert probabilities to class prediction
+  glm_prob <- predict(glm_model, newdata = newdata, type = "response")
+  glm_prediction <- ifelse(glm_prob > 0.5, "1", "0")
+
+  # Predict using kNN
+  knn_prediction <- knn(train = train_data[-1], test = newdata[-1], cl = train_labels, k = k)
+
+  # Combine predictions
+  predictions <- c(nb_prediction, glm_prediction, knn_prediction)
+
+  # Use table to count the occurrences of each prediction
+  tbl <- table(predictions)
+
+  # Calculate majority vote
+  majority_vote <- names(which.max(tbl))
+
+  return(majority_vote)
+}
+
+# Selecting a random row from the test data
+set.seed(123)
+random_row <- testing_data_factor[sample(nrow(testing_data_factor), 1), ]
+
+# Predicting the outcome using the ensemble model
+ensemble_prediction <- predictOutcomeClass(random_row, naive_bayes,lm, knn_pred, 
+                                           training_data_factor, 
+                                           training_data_factor$Grade)
+
+# Printing the ensemble prediction
+print(paste("Ensemble Model Prediction:", ensemble_prediction))
+
+
+
+```
+The ensemble model on single data point  predicts the 1 or GBM  (Glioblastoma Multiforme)  on the basis of analysis of all 3 models combined based on the randomly selected row from the test dataset 
+
+
+
+
+
+  
+
