@@ -9,6 +9,13 @@
 ## Introduction
 This project represents a deep dive into the complexities of bioinformatics, with a specific focus on grading gliomas through the analysis of clinical and genetic data. My approach employs a range of statistical and machine learning techniques, underpinned by R's robust libraries. The goal is to develop reliable models that can accurately classify gliomas, enhancing our understanding and treatment of this condition.
 
+
+
+## Description
+Glioma is the most common cancer of the central nervous system and a leading cause of death due to poor prognosis. The treatment of gliomas greatly depends on accurate tumor classification. The mostly widely used WHO classification classifies gliomas into low grade (Astrocytoma, Oligodendroglioma) and high grade (Glioblastoma) based on their cells of origin. classifying gliomas to distinguish between the lethal high-grade glioblastoma and the low-grade gliomas is an unmet need and incorrect classification can greatly affect the treatment plan and its outcome.
+
+This project used publicly available gene expression data and clinical information for glioma from The Cancer Genome Atlas (TCGA).
+
 ## Methodology
 ### Data Preparation and Exploration
 
@@ -38,6 +45,8 @@ Each model was chosen for its suitability in handling the mixture of categorical
 
 #### Model Evaluation
 Metrics: To evaluate the models, I used a range of metrics including accuracy, precision, recall, F1 Score, and Area Under the ROC Curve (AUC). These metrics provided a comprehensive view of each model's performance and were particularly apt for the medical classification task at hand.
+
+This project compares the performance of all four models for given data using a 10-fold Cross Validation
 
 ### Advanced Analytical Techniques
 
