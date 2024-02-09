@@ -50,10 +50,10 @@ This project compares the performance of all four models for given data using a 
 
 ### Advanced Analytical Techniques
 
-- Model Tuning
+- Model Tuning:
 Fine-tuned each model to enhance their performance. For KNN, the number of neighbors was optimized, while for SVM, parameters like cost and gamma were adjusted.
 
-- Ensemble Modeling
+- Ensemble Modeling:
 Developed an ensemble model that combined predictions from the individual models. This approach aimed to leverage the strengths of each model, potentially improving the overall predictive power.
 
 ## Conclusion
