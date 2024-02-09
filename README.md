@@ -14,13 +14,13 @@ This project represents a deep dive into the complexities of bioinformatics, wit
 ## Description
 Glioma is the most common cancer of the central nervous system and a leading cause of death due to poor prognosis. The treatment of gliomas greatly depends on accurate tumor classification. The mostly widely used WHO classification classifies gliomas into low grade (Astrocytoma, Oligodendroglioma) and high grade (Glioblastoma) based on their cells of origin. classifying gliomas to distinguish between the lethal high-grade glioblastoma and the low-grade gliomas is an unmet need and incorrect classification can greatly affect the treatment plan and its outcome.
 
-This project used publicly available gene expression data and clinical information for glioma from The Cancer Genome Atlas (TCGA).
+I used publicly available gene expression data and clinical information for glioma from The Cancer Genome Atlas (TCGA).
 
 ## Methodology
 ### Data Preparation and Exploration
 
 #### Data Acquisition:
-- The journey began with the data import using *TCGA_InfoWithGrade.csv*
+- data imported using *TCGA_InfoWithGrade.csv*
 - I placed a strong emphasis on treating categorical variables with care and ensuring data integrity.
 
 #### Exploratory Data Analysis (EDA):
